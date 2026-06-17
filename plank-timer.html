@@ -788,7 +788,7 @@ async function saveToSheet(data) {
     await fetch(SHEET_URL, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ type:data.type, date, time, sets:data.sets||null, workTime:data.type==='plank'?cfg.work:null, restTime:data.type==='plank'?cfg.rest:null, totalSec:data.totalSec||null })
+      body:JSON.stringify({ type:data.type, date, time, sets:data.sets||null, workTime:data.type==='plank'?cfg.work:null, restTime:data.type==='plank'?cfg.rest:null, totalSec:data.totalSec||null, feel:data.feel||null, dist:data.dist||null, pace:data.pace||null })
     });
   } catch(e) {}
 }
