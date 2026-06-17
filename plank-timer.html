@@ -192,7 +192,7 @@
   .run-unit { font-size: 14px; color: var(--muted); }
   .run-pace { font-size: 13px; color: #64f5a6; margin-top: 2px; }
   .feel-row { display: flex; gap: 8px; }
-  .feel-btn { flex: 1; height: 44px; border: 1px solid var(--border); border-radius: 12px;
+  .feel-btn { flex: 1; height: 44px; width: 60px; border: 1px solid var(--border); border-radius: 12px;
     background: none; color: var(--muted); font-size: 20px; cursor: pointer; transition: all .15s; }
   .feel-btn.selected { border-color: #64f5a6; background: rgba(100,245,166,.1); }
   .run-save { width: 100%; height: 56px; border: none; border-radius: var(--radius);
@@ -410,6 +410,11 @@ if ('serviceWorker' in navigator) {
   <div class="done-emoji">🎉</div>
   <div class="done-title">완료!</div>
   <div class="done-sub" id="done-sub"></div>
+  <div style="display:flex;gap:12px;margin:8px 0;">
+    <button class="feel-btn" id="plank-feel-good" onclick="selectPlankFeel('good')">😊</button>
+    <button class="feel-btn" id="plank-feel-ok" onclick="selectPlankFeel('ok')">😐</button>
+    <button class="feel-btn" id="plank-feel-bad" onclick="selectPlankFeel('bad')">😓</button>
+  </div>
   <button class="done-btn" onclick="closeDone()">확인</button>
 </div>
 
@@ -418,6 +423,11 @@ if ('serviceWorker' in navigator) {
   <div class="done-emoji">💪</div>
   <div class="done-title" style="color:var(--squat)">스쿼트 완료!</div>
   <div class="done-sub">오늘도 수고했어요 🙌</div>
+  <div style="display:flex;gap:12px;margin:8px 0;">
+    <button class="feel-btn" id="squat-feel-good" onclick="selectSquatFeel('good')">😊</button>
+    <button class="feel-btn" id="squat-feel-ok" onclick="selectSquatFeel('ok')">😐</button>
+    <button class="feel-btn" id="squat-feel-bad" onclick="selectSquatFeel('bad')">😓</button>
+  </div>
   <button class="done-btn" style="background:var(--squat)" onclick="closeSquatDone()">확인</button>
 </div>
 
@@ -477,7 +487,7 @@ function beginRest() {
 function finishSession() {
   clearInterval(tickInterval); tickInterval = null; phase = 'done';
   savePlankSession({ sets: cfg.sets, totalSec: totalSeconds, complete: true });
-  saveToSheet({ type: 'plank', sets: cfg.sets, totalSec: totalSeconds });
+  saveToSheet({ type: 'plank', sets: cfg.sets, totalSec: totalSeconds, feel: plankFeel });
   updateUI(); beepDone(); showDone();
 }
 function startTick() {
@@ -561,6 +571,8 @@ function showDone() {
 }
 function closeDone() {
   document.getElementById('done-overlay').classList.remove('show');
+  plankFeel = null;
+  ['good','ok','bad'].forEach(f => document.getElementById('plank-feel-'+f).classList.remove('selected'));
   resetTimer();
 }
 
@@ -570,7 +582,7 @@ function logSquat() {
   const sessions = JSON.parse(localStorage.getItem(SQUAT_KEY)||'[]');
   sessions.unshift({ date: new Date().toISOString() });
   localStorage.setItem(SQUAT_KEY, JSON.stringify(sessions));
-  saveToSheet({ type: 'squat' });
+  saveToSheet({ type: 'squat', feel: squatFeel });
   vibrate([80,60,200]);
   beepDone();
   document.getElementById('squat-overlay').classList.add('show');
@@ -578,6 +590,8 @@ function logSquat() {
 }
 function closeSquatDone() {
   document.getElementById('squat-overlay').classList.remove('show');
+  squatFeel = null;
+  ['good','ok','bad'].forEach(f => document.getElementById('squat-feel-'+f).classList.remove('selected'));
 }
 function updateSquatToday() {
   const sessions = JSON.parse(localStorage.getItem(SQUAT_KEY)||'[]');
@@ -681,6 +695,20 @@ function syncInlineUI() {
   ['work','rest','sets'].forEach(k=>{ const el=document.getElementById('inline-'+k); if(el) el.textContent=cfg[k]; });
 }
 
+
+// ── FEEL FOR PLANK/SQUAT ──
+let plankFeel = null, squatFeel = null;
+
+function selectPlankFeel(feel) {
+  plankFeel = feel;
+  ['good','ok','bad'].forEach(f => document.getElementById('plank-feel-'+f).classList.remove('selected'));
+  document.getElementById('plank-feel-'+feel).classList.add('selected');
+}
+function selectSquatFeel(feel) {
+  squatFeel = feel;
+  ['good','ok','bad'].forEach(f => document.getElementById('squat-feel-'+f).classList.remove('selected'));
+  document.getElementById('squat-feel-'+feel).classList.add('selected');
+}
 
 // ── RUNNING ──
 const RUN_KEY = 'run_sessions';
