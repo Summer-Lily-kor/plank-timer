@@ -789,7 +789,7 @@ async function saveToSheet(data) {
       workTime:data.type==='plank'?cfg.work:null, restTime:data.type==='plank'?cfg.rest:null,
       totalSec:data.totalSec||null, feel:data.feel||null, dist:data.dist||null, pace:data.pace||null };
     // URL에 파라미터로 전송 (GET 방식 - 재시도 없음)
-    const url = SHEET_URL + '?payload=' + encodeURIComponent(JSON.stringify(payload));
+    const url = SHEET_URL + '?payload=' + encodeURIComponent(JSON.stringify(payload)) + '&origin=' + encodeURIComponent(window.location.hostname);
     const img = new Image();
     img.src = url;
   } catch(e) {}
