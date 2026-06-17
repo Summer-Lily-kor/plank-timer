@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="플랭크">
+<meta name="theme-color" content="#0d0d0d">
+<title>플랭크 타이머</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #181818;
+    --border: #2a2a2a;
+    --text: #f0f0f0;
+    --muted: #666;
+    --work: #c8f564;
+    --rest: #64b5f6;
+    --done: #f564a9;
+    --radius: 20px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ── SCREENS ── */
+  .screen { display: none; flex-direction: column; height: 100dvh; padding: env(safe-area-inset-top, 12px) 0 env(safe-area-inset-bottom, 12px); }
+  .screen.active { display: flex; }
+
+  /* ── BOTTOM NAV ── */
+  nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    z-index: 100;
+  }
+  nav button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: none; color: var(--muted);
+    padding: 12px 0 10px; font-size: 10px; letter-spacing: .05em; cursor: pointer;
+    transition: color .15s;
+  }
+  nav button.active { color: var(--work); }
+  nav button svg { width: 22px; height: 22px; }
+
+  /* ── TIMER SCREEN ── */
+  #timer-screen {
+    align-items: center;
+    justify-content: space-between;
+    padding-top: calc(env(safe-area-inset-top, 12px) + 24px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 72px);
+    padding-left: 24px; padding-right: 24px;
+  }
+
+  .phase-label {
+    font-size: 13px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--muted); transition: color .3s;
+  }
+  .phase-label.work  { color: var(--work); }
+  .phase-label.rest  { color: var(--rest); }
+  .phase-label.done  { color: var(--done); }
+
+  .ring-wrap {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ring-svg { transform: rotate(-90deg); }
+  .ring-bg   { fill: none; stroke: var(--border); }
+  .ring-fill { fill: none; stroke-linecap: round; transition: stroke-dashoffset .95s linear, stroke .3s; }
+
+  .ring-content {
+    position: absolute;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .countdown {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(64px, 20vw, 96px);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -.03em;
+    color: var(--text);
+    transition: color .3s;
+  }
+  .countdown.work { color: var(--work); }
+  .countdown.rest { color: var(--rest); }
+  .countdown.done { color: var(--done); }
+
+  .set-indicator {
+    display: flex; gap: 8px; margin-top: 4px;
+  }
+  .set-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border); transition: background .3s, transform .2s;
+  }
+  .set-dot.done-dot { background: var(--work); transform: scale(1.1); }
+  .set-dot.current  { background: var(--work); opacity: .5; }
+
+  .set-text {
+    font-size: 13px; color: var(--muted); margin-top: 8px;
+    letter-spacing: .04em;
+  }
+
+  .btn-row { display: flex; gap: 16px; width: 100%; }
+  .btn {
+    flex: 1; height: 60px; border: none; border-radius: var(--radius);
+    font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: transform .1s, opacity .1s;
+    letter-spacing: .02em;
+  }
+  .btn:active { transform: scale(.96); opacity: .85; }
+  .btn-primary { background: var(--work); color: #0d0d0d; }
+  .btn-primary.rest-mode { background: var(--rest); }
+  .btn-secondary { background: var(--surface); color: var(--muted); border: 1px solid var(--border); flex: 0 0 60px; }
+
+  /* ── HISTORY SCREEN ── */
+  #history-screen {
+    padding-top: calc(env(safe-area-inset-top, 12px) + 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 72px);
+  }
+  .screen-title {
+    font-size: 22px; font-weight: 700; padding: 0 24px 20px;
+  }
+  .history-list { flex: 1; overflow-y: auto; padding: 0 24px; }
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; gap: 12px; color: var(--muted); font-size: 14px; padding-bottom: 80px; }
+  .empty-state .icon { font-size: 48px; opacity: .3; }
+
+  .history-day { margin-bottom: 28px; }
+  .day-label { font-size: 11px; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 10px; }
+  .session-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .session-card .meta { display: flex; flex-direction: column; gap: 4px; }
+  .session-card .sets-done { font-weight: 600; font-size: 15px; }
+  .session-card .time-done { font-size: 12px; color: var(--muted); }
+  .session-card .badge {
+    background: var(--border); border-radius: 8px;
+    padding: 4px 10px; font-size: 12px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .session-card.complete .badge { background: #1a2a0a; color: var(--work); }
+
+  /* ── SETTINGS SCREEN ── */
+  #settings-screen {
+    padding-top: calc(env(safe-area-inset-top, 12px) + 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 72px);
+    overflow-y: auto;
+  }
+  .settings-body { padding: 0 24px; display: flex; flex-direction: column; gap: 12px; }
+  .setting-group { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; }
+  .setting-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+  }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-row label { font-size: 15px; font-weight: 500; }
+  .setting-row .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stepper { display: flex; align-items: center; gap: 0; }
+  .stepper button {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--border); border: none; color: var(--text);
+    font-size: 20px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .1s;
+  }
+  .stepper button:active { background: #333; }
+  .stepper span {
+    font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500;
+    min-width: 48px; text-align: center;
+  }
+
+  .save-btn {
+    margin-top: 4px; width: 100%; height: 56px; border: none; border-radius: var(--radius);
+    background: var(--work); color: #0d0d0d; font-family: 'Inter', sans-serif;
+    font-size: 16px; font-weight: 700; cursor: pointer; transition: opacity .1s;
+  }
+  .save-btn:active { opacity: .8; }
+
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: .1em;
+    color: var(--muted); text-transform: uppercase; padding: 0 4px; margin-top: 4px; }
+
+  /* ── DONE OVERLAY ── */
+  #done-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(13,13,13,.95);
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  #done-overlay.show { display: flex; }
+  .done-emoji { font-size: 64px; animation: pop .4s ease; }
+  .done-title { font-size: 28px; font-weight: 700; color: var(--work); }
+  .done-sub { font-size: 15px; color: var(--muted); }
+  .done-btn { margin-top: 12px; height: 56px; padding: 0 40px; border: none; border-radius: var(--radius);
+    background: var(--work); color: #0d0d0d; font-family: 'Inter', sans-serif;
+    font-size: 16px; font-weight: 700; cursor: pointer; }
+  @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ── INLINE CONFIG ── */
+  .inline-config {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 4px;
+    transition: opacity .2s, transform .2s;
+  }
+  .inline-config.hidden {
+    opacity: 0; pointer-events: none; transform: translateY(6px);
+  }
+  .inline-row {
+    display: flex; align-items: center; justify-content: space-around;
+  }
+  .inline-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    flex: 1; min-width: 0;
+  }
+  .inline-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .06em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .inline-unit {
+    font-size: 10px; color: var(--muted);
+  }
+  .inline-divider {
+    width: 1px; height: 40px; background: var(--border); flex-shrink: 0;
+  }
+  .inline-config .stepper {
+    display: flex; align-items: center; width: 100%; justify-content: center;
+  }
+  .inline-config .stepper button {
+    width: clamp(24px, 7vw, 32px); height: clamp(24px, 7vw, 32px);
+    border-radius: 7px; background: var(--border); border: none; color: var(--text);
+    font-size: clamp(14px, 4vw, 18px); line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .inline-config .stepper button:active { background: #333; }
+  .inline-config .stepper span {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(13px, 4vw, 17px); font-weight: 500;
+    min-width: clamp(28px, 8vw, 40px); text-align: center;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<!-- TIMER SCREEN -->
+<div id="timer-screen" class="screen active">
+  <div class="phase-label" id="phase-label">준비</div>
+
+  <div class="ring-wrap">
+    <svg class="ring-svg" id="ring-svg" viewBox="0 0 260 260" width="260" height="260">
+      <circle class="ring-bg" cx="130" cy="130" r="116" stroke-width="12"/>
+      <circle class="ring-fill" id="ring-fill" cx="130" cy="130" r="116" stroke-width="12"
+              stroke="var(--work)" stroke-dasharray="729" stroke-dashoffset="0"/>
+    </svg>
+    <div class="ring-content">
+      <div class="countdown" id="countdown">—</div>
+      <div class="set-text" id="set-text">시작을 눌러주세요</div>
+      <div class="set-indicator" id="set-indicator"></div>
+    </div>
+  </div>
+
+  <!-- Inline config — only shown when idle -->
+  <div class="inline-config" id="inline-config">
+    <div class="inline-row">
+      <div class="inline-item">
+        <div class="inline-label">운동</div>
+        <div class="stepper">
+          <button onclick="adjustInline('work',-1)">−</button>
+          <span id="inline-work">10</span>
+          <button onclick="adjustInline('work',1)">+</button>
+        </div>
+        <div class="inline-unit">초</div>
+      </div>
+      <div class="inline-divider"></div>
+      <div class="inline-item">
+        <div class="inline-label">휴식</div>
+        <div class="stepper">
+          <button onclick="adjustInline('rest',-1)">−</button>
+          <span id="inline-rest">5</span>
+          <button onclick="adjustInline('rest',1)">+</button>
+        </div>
+        <div class="inline-unit">초</div>
+      </div>
+      <div class="inline-divider"></div>
+      <div class="inline-item">
+        <div class="inline-label">세트</div>
+        <div class="stepper">
+          <button onclick="adjustInline('sets',-1)">−</button>
+          <span id="inline-sets">5</span>
+          <button onclick="adjustInline('sets',1)">+</button>
+        </div>
+        <div class="inline-unit">세트</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" id="reset-btn" onclick="resetTimer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+    </button>
+    <button class="btn btn-primary" id="start-btn" onclick="toggleTimer()">시작</button>
+  </div>
+</div>
+
+<!-- HISTORY SCREEN -->
+<div id="history-screen" class="screen">
+  <div class="screen-title">기록</div>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<!-- SETTINGS SCREEN -->
+<div id="settings-screen" class="screen">
+  <div class="screen-title">설정</div>
+  <div class="settings-body">
+    <div class="section-label">타이머</div>
+    <div class="setting-group">
+      <div class="setting-row">
+        <div><label>운동 시간</label><div class="hint">초 단위</div></div>
+        <div class="stepper">
+          <button onclick="adjust('work',-1)">−</button>
+          <span id="val-work">10</span>
+          <button onclick="adjust('work',1)">+</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><label>휴식 시간</label><div class="hint">초 단위</div></div>
+        <div class="stepper">
+          <button onclick="adjust('rest',-1)">−</button>
+          <span id="val-rest">5</span>
+          <button onclick="adjust('rest',1)">+</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><label>세트 수</label></div>
+        <div class="stepper">
+          <button onclick="adjust('sets',-1)">−</button>
+          <span id="val-sets">5</span>
+          <button onclick="adjust('sets',1)">+</button>
+        </div>
+      </div>
+    </div>
+    <button class="save-btn" onclick="saveSettings()">저장하기</button>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav>
+  <button class="active" id="nav-timer" onclick="showScreen('timer')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    타이머
+  </button>
+  <button id="nav-history" onclick="showScreen('history')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    기록
+  </button>
+  <button id="nav-settings" onclick="showScreen('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    설정
+  </button>
+</nav>
+
+<!-- DONE OVERLAY -->
+<div id="done-overlay">
+  <div class="done-emoji">🎉</div>
+  <div class="done-title">완료!</div>
+  <div class="done-sub" id="done-sub"></div>
+  <button class="done-btn" onclick="closeDone()">확인</button>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────
+const STORAGE_KEY = 'plank_sessions';
+const SETTINGS_KEY = 'plank_settings';
+
+let cfg = { work: 10, rest: 5, sets: 5 };
+let tmpCfg = { ...cfg };
+
+let phase = 'idle'; // idle | work | rest | done
+let currentSet = 0;
+let timeLeft = 0;
+let totalSeconds = 0;
+let tickInterval = null;
+let sessionStart = null;
+
+// ── INIT ───────────────────────────────────────────────
+function init() {
+  const saved = localStorage.getItem(SETTINGS_KEY);
+  if (saved) { cfg = JSON.parse(saved); }
+  tmpCfg = { ...cfg };
+  syncSettingsUI();
+  syncInlineUI();
+  buildDots();
+  updateCountdownDisplay();
+}
+
+// ── SCREEN NAV ─────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(name + '-screen').classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+}
+
+// ── TIMER CORE ─────────────────────────────────────────
+function toggleTimer() {
+  // iOS requires AudioContext to be created/resumed on user gesture
+  try { getAudioCtx().resume(); } catch(e) {}
+  if (phase === 'idle' || phase === 'done') {
+    startSession();
+  } else if (tickInterval) {
+    pauseTimer();
+  } else {
+    resumeTimer();
+  }
+}
+
+function startSession() {
+  currentSet = 0;
+  totalSeconds = 0;
+  sessionStart = new Date();
+  document.getElementById('inline-config').classList.add('hidden');
+  beginWork();
+}
+
+function beginWork() {
+  currentSet++;
+  phase = 'work';
+  timeLeft = cfg.work;
+  updateUI();
+  beepPhaseChange();
+  startTick();
+}
+
+function beginRest() {
+  phase = 'rest';
+  timeLeft = cfg.rest;
+  updateUI();
+  vibrate([60]);
+  beepPhaseChange();
+  startTick();
+}
+
+function finishSession() {
+  clearInterval(tickInterval); tickInterval = null;
+  phase = 'done';
+  saveSession({ sets: cfg.sets, totalSec: totalSeconds, complete: true });
+  updateUI();
+  beepDone();
+  showDone();
+}
+
+function startTick() {
+  clearInterval(tickInterval);
+  tickInterval = setInterval(() => {
+    totalSeconds++;
+    timeLeft--;
+    updateRing();
+    if (timeLeft > 0 && timeLeft <= 3) beepTick();
+    if (timeLeft <= 0) {
+      if (phase === 'work') {
+        if (currentSet >= cfg.sets) {
+          finishSession();
+        } else {
+          beginRest();
+        }
+      } else if (phase === 'rest') {
+        beginWork();
+      }
+    }
+    updateCountdownDisplay();
+  }, 1000);
+}
+
+function pauseTimer() {
+  clearInterval(tickInterval); tickInterval = null;
+  document.getElementById('start-btn').textContent = '계속';
+}
+
+function resumeTimer() {
+  startTick();
+  document.getElementById('start-btn').textContent = phase === 'work' ? '일시정지' : '일시정지';
+}
+
+function resetTimer() {
+  clearInterval(tickInterval); tickInterval = null;
+  phase = 'idle'; currentSet = 0; timeLeft = 0; totalSeconds = 0;
+  document.getElementById('inline-config').classList.remove('hidden');
+  updateUI();
+}
+
+// ── UI UPDATE ──────────────────────────────────────────
+const CIRC = 2 * Math.PI * 116; // 728.8
+
+function updateUI() {
+  const el = document.getElementById('countdown');
+  const lbl = document.getElementById('phase-label');
+  const btn = document.getElementById('start-btn');
+  const ringFill = document.getElementById('ring-fill');
+
+  // Phase label
+  const labels = { idle: '준비', work: '운동 중', rest: '휴식', done: '완료' };
+  lbl.textContent = labels[phase];
+  lbl.className = 'phase-label ' + (phase === 'idle' ? '' : phase === 'done' ? 'done' : phase);
+
+  // Countdown color
+  el.className = 'countdown ' + (phase === 'idle' ? '' : phase === 'done' ? 'done' : phase);
+
+  // Ring color
+  const colors = { idle: 'var(--border)', work: 'var(--work)', rest: 'var(--rest)', done: 'var(--done)' };
+  ringFill.style.stroke = colors[phase];
+
+  // Button
+  if (phase === 'idle') { btn.textContent = '시작'; btn.className = 'btn btn-primary'; }
+  else if (phase === 'done') { btn.textContent = '다시 하기'; btn.className = 'btn btn-primary'; }
+  else if (tickInterval) { btn.textContent = '일시정지'; btn.className = 'btn btn-primary' + (phase === 'rest' ? ' rest-mode' : ''); }
+  else { btn.textContent = '계속'; btn.className = 'btn btn-primary'; }
+
+  updateCountdownDisplay();
+  updateDots();
+  updateRing();
+
+  // Set text
+  const setTxt = document.getElementById('set-text');
+  if (phase === 'idle') setTxt.textContent = '시작을 눌러주세요';
+  else if (phase === 'done') setTxt.textContent = `${cfg.sets}세트 완료!`;
+  else setTxt.textContent = `${currentSet} / ${cfg.sets} 세트`;
+}
+
+function updateCountdownDisplay() {
+  const el = document.getElementById('countdown');
+  if (phase === 'idle') { el.textContent = cfg.work; return; }
+  if (phase === 'done') { el.textContent = '✓'; return; }
+  el.textContent = timeLeft;
+}
+
+function updateRing() {
+  const fill = document.getElementById('ring-fill');
+  let total = phase === 'work' ? cfg.work : cfg.rest;
+  if (phase === 'idle' || phase === 'done') { fill.style.strokeDashoffset = 0; return; }
+  const pct = timeLeft / total;
+  fill.style.strokeDashoffset = CIRC * (1 - pct);
+}
+
+function buildDots() {
+  const wrap = document.getElementById('set-indicator');
+  wrap.innerHTML = '';
+  for (let i = 0; i < cfg.sets; i++) {
+    const d = document.createElement('div');
+    d.className = 'set-dot';
+    d.id = 'dot-' + i;
+    wrap.appendChild(d);
+  }
+}
+
+function updateDots() {
+  for (let i = 0; i < cfg.sets; i++) {
+    const d = document.getElementById('dot-' + i);
+    if (!d) continue;
+    if (i < currentSet - 1 || phase === 'done') d.className = 'set-dot done-dot';
+    else if (i === currentSet - 1) d.className = 'set-dot current';
+    else d.className = 'set-dot';
+  }
+}
+
+// ── DONE OVERLAY ────────────────────────────────────────
+function showDone() {
+  const overlay = document.getElementById('done-overlay');
+  const sub = document.getElementById('done-sub');
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  const timeStr = mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`;
+  sub.textContent = `${cfg.sets}세트 · 총 ${timeStr}`;
+  overlay.classList.add('show');
+  vibrate([80, 60, 80, 60, 200]);
+}
+
+function closeDone() {
+  document.getElementById('done-overlay').classList.remove('show');
+  resetTimer();
+  document.getElementById('inline-config').classList.remove('hidden');
+}
+
+// ── VIBRATE ────────────────────────────────────────────
+function vibrate(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+// ── BEEP ───────────────────────────────────────────────
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq = 880, duration = 0.12, vol = 0.4) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+// 페이즈 전환: 높은 비프 두 번
+function beepPhaseChange() { beep(880, 0.1); setTimeout(() => beep(880, 0.1), 150); }
+// 완료: 상승 3연타
+function beepDone() {
+  beep(660, 0.12); setTimeout(() => beep(880, 0.12), 160); setTimeout(() => beep(1100, 0.25), 320);
+}
+// 마지막 3초 카운트다운
+function beepTick() { beep(440, 0.08, 0.25); }
+
+// ── SETTINGS ───────────────────────────────────────────
+function adjust(key, delta) {
+  const mins = { work: 1, rest: 1, sets: 1 };
+  const maxs = { work: 300, rest: 120, sets: 20 };
+  tmpCfg[key] = Math.max(mins[key], Math.min(maxs[key], tmpCfg[key] + delta));
+  document.getElementById('val-' + key).textContent = tmpCfg[key];
+}
+
+function syncSettingsUI() {
+  tmpCfg = { ...cfg };
+  ['work', 'rest', 'sets'].forEach(k => {
+    document.getElementById('val-' + k).textContent = cfg[k];
+  });
+}
+
+function saveSettings() {
+  cfg = { ...tmpCfg };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(cfg));
+  if (phase === 'idle') {
+    buildDots();
+    updateCountdownDisplay();
+  }
+  const btn = document.querySelector('.save-btn');
+  btn.textContent = '저장됐어요 ✓';
+  setTimeout(() => btn.textContent = '저장하기', 1500);
+}
+
+// ── HISTORY ────────────────────────────────────────────
+function saveSession(data) {
+  const sessions = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  sessions.unshift({
+    date: new Date().toISOString(),
+    sets: data.sets,
+    totalSec: data.totalSec,
+    complete: data.complete,
+    workTime: cfg.work,
+    restTime: cfg.rest,
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const sessions = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  if (!sessions.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>아직 기록이 없어요</div><div>첫 플랭크를 시작해봐요!</div></div>';
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  sessions.forEach(s => {
+    const d = new Date(s.date);
+    const key = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(s);
+  });
+
+  list.innerHTML = '';
+  Object.entries(groups).forEach(([dateStr, items]) => {
+    const div = document.createElement('div');
+    div.className = 'history-day';
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+    const yStr = `${yesterday.getFullYear()}.${String(yesterday.getMonth()+1).padStart(2,'0')}.${String(yesterday.getDate()).padStart(2,'0')}`;
+
+    let label = dateStr;
+    if (dateStr === todayStr) label = '오늘';
+    else if (dateStr === yStr) label = '어제';
+
+    div.innerHTML = `<div class="day-label">${label}</div>`;
+
+    items.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'session-card' + (s.complete ? ' complete' : '');
+      const mins = Math.floor(s.totalSec / 60);
+      const secs = s.totalSec % 60;
+      const timeStr = mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`;
+      const t = new Date(s.date);
+      const timeLabel = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      card.innerHTML = `
+        <div class="meta">
+          <div class="sets-done">${s.sets}세트 ${s.complete ? '완료' : '(미완)'}</div>
+          <div class="time-done">${timeLabel} · ${timeStr} · ${s.workTime}초/${s.restTime}초</div>
+        </div>
+        <div class="badge">${s.complete ? '✓' : '—'}</div>
+      `;
+      div.appendChild(card);
+    });
+
+    list.appendChild(div);
+  });
+}
+
+function adjustInline(key, delta) {
+  const mins = { work: 1, rest: 1, sets: 1 };
+  const maxs = { work: 300, rest: 120, sets: 20 };
+  cfg[key] = Math.max(mins[key], Math.min(maxs[key], cfg[key] + delta));
+  document.getElementById('inline-' + key).textContent = cfg[key];
+  // also sync settings screen
+  document.getElementById('val-' + key).textContent = cfg[key];
+  tmpCfg = { ...cfg };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(cfg));
+  buildDots();
+  updateCountdownDisplay();
+}
+
+function syncInlineUI() {
+  ['work', 'rest', 'sets'].forEach(k => {
+    const el = document.getElementById('inline-' + k);
+    if (el) el.textContent = cfg[k];
+  });
+}
+
+// ── START ──────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
